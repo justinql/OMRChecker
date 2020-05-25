@@ -286,7 +286,7 @@ def preliminary_check():
         OMRresponseDict, final_marked, MultiMarked, multiroll = readResponse(
             ALL_BLACK, name="ALL_BLACK", savedir=None, autoAlign=True)
         print("ALL_BLACK", OMRresponseDict)
-        show("Confirm : All bubbles are black", final_marked, 1, 1)
+        #show("Confirm : All bubbles are black", final_marked, 1, 1)
 
 
 def process_files(omr_files, template, args, out):
@@ -488,59 +488,59 @@ def evaluate_correctness(template, out):
             print("Missing File-ids: ",
                   list(x_df.index.difference(intersection)))
 
-
 timeNowHrs = strftime("%I%p", localtime())
+if __name__ == '__main__':
 
-# construct the argument parse and parse the arguments
-argparser = argparse.ArgumentParser()
-# https://docs.python.org/3/howto/argparse.html
-# store_true: if the option is specified, assign the value True to
-# args.verbose. Not specifying it implies False.
-argparser.add_argument(
-    "-c",
-    "--noCropping",
-    required=False,
-    dest='noCropping',
-    action='store_true',
-    help="Disables page contour detection - used when page boundary is not visible e.g. document scanner.")
-argparser.add_argument(
-    "-a",
-    "--autoAlign",
-    required=False,
-    dest='autoAlign',
-    action='store_true',
-    help="(experimental) Enables automatic template alignment - use if the scans show slight misalignments.")
-argparser.add_argument(
-    "-l",
-    "--setLayout",
-    required=False,
-    dest='setLayout',
-    action='store_true',
-    help="Set up OMR template layout - modify your json file and run again until the template is set.")
-argparser.add_argument("-i", "--inputDir", required=False, action='append',
-                       dest='input_dir', help="Specify an input directory.")
-argparser.add_argument("-o", "--outputDir", default='outputs', required=False,
-                       dest='output_dir', help="Specify an output directory.")
-argparser.add_argument(
-    "-t",
-    "--template",
-    required=False,
-    dest='template',
-    help="Specify a default template if no template file in input directories.")
+    # construct the argument parse and parse the arguments
+    argparser = argparse.ArgumentParser()
+    # https://docs.python.org/3/howto/argparse.html
+    # store_true: if the option is specified, assign the value True to
+    # args.verbose. Not specifying it implies False.
+    argparser.add_argument(
+        "-c",
+        "--noCropping",
+        required=False,
+        dest='noCropping',
+        action='store_true',
+        help="Disables page contour detection - used when page boundary is not visible e.g. document scanner.")
+    argparser.add_argument(
+        "-a",
+        "--autoAlign",
+        required=False,
+        dest='autoAlign',
+        action='store_true',
+        help="(experimental) Enables automatic template alignment - use if the scans show slight misalignments.")
+    argparser.add_argument(
+        "-l",
+        "--setLayout",
+        required=False,
+        dest='setLayout',
+        action='store_true',
+        help="Set up OMR template layout - modify your json file and run again until the template is set.")
+    argparser.add_argument("-i", "--inputDir", required=False, action='append',
+                           dest='input_dir', help="Specify an input directory.")
+    argparser.add_argument("-o", "--outputDir", default='outputs', required=False,
+                           dest='output_dir', help="Specify an output directory.")
+    argparser.add_argument(
+        "-t",
+        "--template",
+        required=False,
+        dest='template',
+        help="Specify a default template if no template file in input directories.")
+ 
 
+    args, unknown = argparser.parse_known_args()
+    args = vars(args)
+    if(len(unknown) > 0):
+        print("\nError: Unknown arguments:", unknown)
+        argparser.print_help()
+        exit(11)
 
-args, unknown = argparser.parse_known_args()
-args = vars(args)
-if(len(unknown) > 0):
-    print("\nError: Unknown arguments:", unknown)
-    argparser.print_help()
-    exit(11)
+    if args['template']:
+        args['template'] = Template(args['template'])
 
-if args['template']:
-    args['template'] = Template(args['template'])
+    if args['input_dir'] is None:
+        args['input_dir'] = ['inputs']
 
-if args['input_dir'] is None:
-    args['input_dir'] = ['inputs']
-
-for root in args['input_dir']:
-    process_dir(root, '', args['template'])
+    for root in args['input_dir']:
+        process_dir(root, '', args['template'])

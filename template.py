@@ -57,6 +57,14 @@ qtype_data = {
         'vals': range(10),
         'orient': 'V'
     },
+    'QTYPE_INT_V': {
+        'vals': range(10),
+        'orient': 'V'
+    },
+    'QTYPE_INT_H': {
+        'vals': range(10),
+        'orient': 'H'
+    },
     'QTYPE_MCQ4': {
         'vals': ['A', 'B', 'C', 'D'],
         'orient': 'H'
@@ -64,6 +72,10 @@ qtype_data = {
     'QTYPE_MCQ5': {
         'vals': ['A', 'B', 'C', 'D', 'E'],
         'orient': 'H'
+    },
+    'QTYPE_BOOL': {
+        'vals': ['value'],
+        'orient': 'V'
     },
     # Add custom question types here-
     # ,

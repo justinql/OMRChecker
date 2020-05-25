@@ -1,3 +1,6 @@
+opencv-python
+redis
+requests[security]
 imutils>=0.5.2
 matplotlib>=3.0.2
 numpy>=1.16.0

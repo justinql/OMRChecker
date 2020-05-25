@@ -426,7 +426,7 @@ def getBestMatch(image_eroded_sub, marker):
     if(allMaxT < thresholdCircle):
         print("\tWarning: Template matching too low! Should you pass --noCropping flag?")
         if(showimglvl >= 1):
-            show("res", res, 1, 0)
+            pass#show("res", res, 1, 0)
 
     if(best_scale is None):
         print("No matchings for given scaleRange:", marker_rescale_range)
@@ -531,7 +531,7 @@ def handle_markers(image_norm, marker, curr_filename):
     if(best_scale is None):
         # TODO: Plot and see performance of marker_rescale_range
         if(showimglvl >= 1):
-            show('Quads', image_eroded_sub)
+            pass#show('Quads', image_eroded_sub)
         return None
 
     optimal_marker = resize_util_h(
@@ -560,8 +560,8 @@ def handle_markers(image_norm, marker, curr_filename):
                 allMaxT,
                 "Should you pass --noCropping flag?")
             if(showimglvl >= 1):
-                show("no_pts_" + curr_filename, image_eroded_sub, 0)
-                show("res_Q" + str(k + 1), res, 1)
+                pass#show("no_pts_" + curr_filename, image_eroded_sub, 0)
+                pass#show("res_Q" + str(k + 1), res, 1)
             return None
 
         pt = np.argwhere(res == maxT)[0]
@@ -604,8 +604,7 @@ def handle_markers(image_norm, marker, curr_filename):
         image_eroded_sub = resize_util_h(image_eroded_sub, image_norm.shape[0])
         image_eroded_sub[:, -5:] = 0
         h_stack = np.hstack((image_eroded_sub, image_norm))
-        show("Warped: " + curr_filename, resize_util(h_stack,
-                                                     int(display_width * 1.6)), 0, 0, [0, 0])
+        pass#show("Warped: " + curr_filename, resize_util(h_stack, int(display_width * 1.6)), 0, 0, [0, 0])
     # iterations : Tuned to 2.
     # image_eroded_sub = image_norm - cv2.erode(image_norm, kernel=np.ones((5,5)),iterations=2)
     return image_norm
@@ -837,7 +836,7 @@ def readResponse(template, image, name, savedir=None, autoAlign=False):
             morph = normalize_util(morph)
             appendSaveImg(3, morph)
             if(showimglvl >= 4):
-                show("morph1", morph, 0, 1)
+                pass#show("morph1", morph, 0, 1)
 
         # Overlay Transparencies
         alpha = 0.65
@@ -871,7 +870,7 @@ def readResponse(template, image, name, savedir=None, autoAlign=False):
             morph_v = 255 - normalize_util(morph_v)
 
             if(showimglvl >= 3):
-                show("morphed_vertical", morph_v, 0, 1)
+                pass#show("morphed_vertical", morph_v, 0, 1)
 
             # show("morph1",morph,0,1)
             # show("morphed_vertical",morph_v,0,1)
@@ -896,7 +895,7 @@ def readResponse(template, image, name, savedir=None, autoAlign=False):
             # _, morph_h = cv2.threshold(morph_h,morphTHR,255,cv2.THRESH_BINARY)
             # morph_h = cv2.erode(morph_h,  np.ones((5,5),np.uint8), iterations = 2)
             if(showimglvl >= 3):
-                show("morph_thr_eroded", morph_v, 0, 1)
+                pass#show("morph_thr_eroded", morph_v, 0, 1)
 
             appendSaveImg(6, morph_v)
 
@@ -1128,7 +1127,7 @@ def readResponse(template, image, name, savedir=None, autoAlign=False):
         if(showimglvl >= 3 and final_align is not None):
             final_align = resize_util_h(final_align, int(display_height))
             # [final_align.shape[1],0])
-            show("Template Alignment Adjustment", final_align, 0, 0)
+            pass#show("Template Alignment Adjustment", final_align, 0, 0)
 
         # TODO: refactor "type(savedir) != type(None) "
         if (saveMarked and type(savedir) != type(None)):
@@ -1137,8 +1136,7 @@ def readResponse(template, image, name, savedir=None, autoAlign=False):
             saveImg(savedir + name, final_marked)
 
         if(showimglvl >= 1):
-            show("Final Marked Bubbles : " + name,
-                 resize_util_h(final_marked, int(display_height * 1.3)), 1, 1)
+            pass#show("Final Marked Bubbles : " + name, resize_util_h(final_marked, int(display_height * 1.3)), 1, 1)
 
         appendSaveImg(2, final_marked)
 
@@ -1165,4 +1163,4 @@ def saveOrShowStacks(key, name, savedir=None, pause=1):
         if (type(savedir) != type(None)):
             saveImg(savedir+'stack/'+name+'_'+str(key)+'_stack.jpg', result)
         else:
-            show(name + '_' + str(key), result, pause, 0)
+            pass#show(name + '_' + str(key), result, pause, 0)
