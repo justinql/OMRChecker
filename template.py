@@ -73,8 +73,12 @@ qtype_data = {
         'vals': ['A', 'B', 'C', 'D', 'E'],
         'orient': 'H'
     },
-    'QTYPE_BOOL': {
-        'vals': ['value'],
+    'QTYPE_CODE': {
+        'vals': [1],
+        'orient': 'V',
+    },
+    'QTYPE_PAGE': {
+        'vals': [1],
         'orient': 'V'
     },
     # Add custom question types here-

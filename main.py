@@ -99,13 +99,13 @@ def checkAndMove(error_code, filepath, filepath2):
     return True
 
 
-def processOMR(template, omrResp):
+def processOMR(template, omrResp, unmarked_symbol=''):
     # Note: This is a reference function. It is not part of the OMR checker
     # So its implementation is completely subjective to user's requirements.
     csvResp = {}
 
     # symbol for absent response
-    UNMARKED_SYMBOL = ''
+    UNMARKED_SYMBOL = unmarked_symbol
 
     # print("omrResp",omrResp)
 
@@ -289,10 +289,11 @@ def preliminary_check():
         #show("Confirm : All bubbles are black", final_marked, 1, 1)
 
 
-def process_files(omr_files, template, args, out):
+def process_files(omr_files, template, args, out, unmarked_symbol=''):
     start_time = int(time())
     filesCounter = 0
     filesNotMoved = 0
+    all_resps = []
 
     for filepath in omr_files:
         filesCounter += 1
@@ -352,9 +353,11 @@ def process_files(omr_files, template, args, out):
                          savedir=savedir, autoAlign=args["autoAlign"])
 
         # concatenate roll nos, set unmarked responses, etc
-        resp = processOMR(template, OMRresponseDict)
+        resp = processOMR(template, OMRresponseDict, unmarked_symbol)
         print("\nRead Response: \t", resp)
 
+
+        all_resps.append( resp )
         # This evaluates and returns the score attribute
         score = evaluate(resp, explain=explain)
         respArray = []
@@ -445,6 +448,8 @@ def process_files(omr_files, template, args, out):
                 plt.show()
             else:
                 print(x)
+
+    return all_resps
 
 
 # Evaluate accuracy based on OMRDataset file generated through moderation

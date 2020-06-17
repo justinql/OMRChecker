@@ -1,5 +1,6 @@
 opencv-python
 redis
+pdf2image
 requests[security]
 imutils>=0.5.2
 matplotlib>=3.0.2
