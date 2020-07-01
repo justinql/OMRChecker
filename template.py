@@ -67,7 +67,8 @@ qtype_data = {
     },
     'QTYPE_MCQ4': {
         'vals': ['A', 'B', 'C', 'D'],
-        'orient': 'H'
+        'orient': 'H',
+        'col_orient': 'H'
     },
     'QTYPE_MCQ5': {
         'vals': ['A', 'B', 'C', 'D', 'E'],
@@ -95,9 +96,12 @@ qtype_data = {
 
 
 class Template():
-    def __init__(self, path):
-        with open(path, "r") as f:
-            json_obj = json.load(f)
+    def __init__(self, path='', json_obj=None):
+        if not path and not json_obj:
+            raise Exception('No path or json_obj specified')
+        if path:
+            with open(path, "r") as f:
+                json_obj = json.load(f)
         self.path = path
         self.QBlocks = []
         # throw exception on key not exist

@@ -1,3 +1,4 @@
+azure-storage-blob
 opencv-python
 redis
 pdf2image
