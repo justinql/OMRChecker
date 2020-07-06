@@ -1,4 +1,5 @@
 azure-storage-blob
+azure-storage-queue
 opencv-python
 redis
 pdf2image

@@ -1011,7 +1011,7 @@ def readResponse(template, image, name, savedir=None, autoAlign=False):
             for qStrip, qBoxPts in QBlock.traverse_pts:
                 # All Black or All White case
                 noOutliers = allQStdVals[totalQStripNo] < globalStdTHR
-                print(totalQStripNo, qBoxPts[0].qNo, allQStdVals[totalQStripNo], "noOutliers:", noOutliers)
+                # print(totalQStripNo, qBoxPts[0].qNo, allQStdVals[totalQStripNo], "noOutliers:", noOutliers)
                 perQStripThreshold = getLocalThreshold(qBoxPts[0].qNo, allQStripArrs[totalQStripNo],
                                                        globalTHR, noOutliers,
                                                        "Mean Intensity Histogram for " + key + "." +
