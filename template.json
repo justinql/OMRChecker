@@ -1,1 +1,320 @@
-inputs/default/template.json
+{
+    "Dimensions": [
+        452,648
+    ],
+    "BubbleDimensions": [
+        8,
+        8
+    ],
+    "Options": {
+        "OverrideFlags": {
+            "noCropping": true
+        },
+        "Marker": {
+            "RelativePath": "omr_marker.jpg",
+            "SheetToMarkerWidthRatio": 28
+        }
+    },
+    "Concatenations": {
+        "code": [
+            "code_0",
+            "code_1",
+            "code_2",
+            "code_3",
+            "code_4",
+            "code_5",
+            "code_6",
+            "code_7",
+            "code_8",
+            "code_9",
+            "code_10",
+            "code_11",
+            "code_12",
+            "code_13",
+            "code_14",
+            "code_15",
+            "code_16",
+            "code_17",
+            "code_18",
+            "code_19",
+            "code_20",
+            "code_21",
+            "code_22",
+            "code_23",
+            "code_24",
+            "code_25",
+            "code_26",
+            "code_27",
+            "code_28",
+            "code_29",
+            "code_30",
+            "code_31",
+            "code_32",
+            "code_33",
+            "code_34",
+            "code_35",
+            "code_36",
+            "code_37",
+            "code_38",
+            "code_39",
+            "code_40",
+            "code_41",
+            "code_42",
+            "code_43",
+            "code_44",
+            "code_45",
+            "code_46",
+            "code_47",
+            "code_48",
+            "code_49",
+            "code_50",
+            "code_51",
+            "code_52",
+            "code_53",
+            "code_54",
+            "code_55",
+            "code_56",
+            "code_57",
+            "code_58",
+            "code_59",
+            "code_60",
+            "code_61",
+            "code_62",
+            "code_63",
+            "code_64",
+            "code_65",
+            "code_66",
+            "code_67",
+            "code_68",
+            "code_69",
+            "code_70",
+            "code_71",
+            "code_72",
+            "code_73",
+            "code_74",
+            "code_75",
+            "code_76",
+            "code_77",
+            "code_78",
+            "code_79",
+            "code_80",
+            "code_81",
+            "code_82",
+            "code_83",
+            "code_84",
+            "code_85",
+            "code_86",
+            "code_87",
+            "code_88",
+            "code_89",
+            "code_90",
+            "code_91",
+            "code_92",
+            "code_93",
+            "code_94",
+            "code_95",
+            "code_96",
+            "code_97",
+            "code_98",
+            "code_99"
+        ],
+        "page": [
+            "page_0",
+            "page_1",
+            "page_2",
+            "page_3"
+        ]
+    },
+    "Singles": [],
+    "QBlocks": {
+        "code_line1": {
+            "qType": "QTYPE_CODE",
+            "orig": [
+                24,
+                16
+            ],
+            "gaps": [
+                7.85,
+                7.85
+            ],
+            "bigGaps": [
+                7,
+                7
+            ],
+            "qNos": [
+                [
+                    [
+                        "code_0",
+                        "code_1",
+                        "code_2",
+                        "code_3",
+                        "code_4",
+                        "code_5",
+                        "code_6",
+                        "code_7",
+                        "code_8",
+                        "code_9",
+                        "code_10",
+                        "code_11",
+                        "code_12",
+                        "code_13",
+                        "code_14",
+                        "code_15",
+                        "code_16",
+                        "code_17",
+                        "code_18",
+                        "code_19",
+                        "code_20",
+                        "code_21",
+                        "code_22",
+                        "code_23",
+                        "code_24",
+                        "code_25",
+                        "code_26",
+                        "code_27",
+                        "code_28",
+                        "code_29",
+                        "code_30",
+                        "code_31",
+                        "code_32",
+                        "code_33",
+                        "code_34",
+                        "code_35",
+                        "code_36",
+                        "code_37",
+                        "code_38",
+                        "code_39",
+                        "code_40",
+                        "code_41",
+                        "code_42",
+                        "code_43",
+                        "code_44",
+                        "code_45",
+                        "code_46",
+                        "code_47",
+                        "code_48",
+                        "code_49"
+                    ]
+                ]
+            ]
+        },
+        "code_line2": {
+            "qType": "QTYPE_CODE",
+            "orig": [
+                24,
+                24
+            ],
+            "gaps": [
+                7.85,
+                7.85
+            ],
+            "bigGaps": [
+                9,
+                9
+            ],
+            "qNos": [
+                [
+ 
+                    [
+                        "code_50",
+                        "code_51",
+                        "code_52",
+                        "code_53",
+                        "code_54",
+                        "code_55",
+                        "code_56",
+                        "code_57",
+                        "code_58",
+                        "code_59",
+                        "code_60",
+                        "code_61",
+                        "code_62",
+                        "code_63",
+                        "code_64",
+                        "code_65",
+                        "code_66",
+                        "code_67",
+                        "code_68",
+                        "code_69",
+                        "code_70",
+                        "code_71",
+                        "code_72",
+                        "code_73",
+                        "code_74",
+                        "code_75",
+                        "code_76",
+                        "code_77",
+                        "code_78",
+                        "code_79",
+                        "code_80",
+                        "code_81",
+                        "code_82",
+                        "code_83",
+                        "code_84",
+                        "code_85",
+                        "code_86",
+                        "code_87",
+                        "code_88",
+                        "code_89",
+                        "code_90",
+                        "code_91",
+                        "code_92",
+                        "code_93",
+                        "code_94",
+                        "code_95",
+                        "code_96",
+                        "code_97",
+                        "code_98",
+                        "code_99"
+                    ]
+                ]
+            ]
+        },
+        "page_line1": {
+            "qType": "QTYPE_PAGE",
+            "orig": [
+                417,
+                16
+            ],
+            "gaps": [
+                7.85,
+                7.85
+            ],
+            "bigGaps": [
+                0,
+                0
+            ],
+            "qNos": [
+                [
+                    [
+                        "page_0",
+                        "page_1"
+                    ]
+                ]
+            ]
+        },
+        "page_line2": {
+            "qType": "QTYPE_PAGE",
+            "orig": [
+                417,
+                24
+            ],
+            "gaps": [
+                7.85,
+                7.85
+            ],
+            "bigGaps": [
+                0,
+                0
+            ],
+            "qNos": [
+                [
+                    [
+                        "page_2",
+                        "page_3"
+                    ]
+                ]
+            ]
+        }
+    }
+}

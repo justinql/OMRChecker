@@ -58,6 +58,7 @@ thresholdVar = 0.41
 
 # TODO: remove unnec variables here-
 thresholdCircle = 0.3
+thresholdCircle = 0.48
 marker_rescale_range = (35, 100)
 marker_rescale_steps = 10
 
