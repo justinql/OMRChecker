@@ -1,11 +1,10 @@
-import redis, json, requests, time, sys, glob, traceback
+import redis, json, requests, time, sys, glob, traceback, os.path, re
 from  main import process_files, setup_output
 from globals import Paths
 from utils import setup_dirs
 from template import Template
 from tempfile import TemporaryDirectory, NamedTemporaryFile
 from pdf2image import convert_from_path
-import os.path
 from io import StringIO
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 from azure.storage.queue import QueueServiceClient, QueueClient, QueueMessage, TextBase64DecodePolicy
@@ -93,9 +92,12 @@ class OMRDocker:
                             self.move_output_files( os.path.join(tmp_dir,'CheckedOMRs'), 'scan-errors', prefix='corrected_', include_orginal=True)
                             break
             return codes
-        else: return [template]
+        else: return [(template, 1)]
 
     def get_template( self, exam_code, page ):
+        if self.use_local_template:
+            with open('./blank_template.json', 'r') as f: 
+                return json.load(f)[page-1]
         url = self.server_url_prefix + '/exams'
         data = {
             'exam_id': exam_code,
@@ -117,7 +119,7 @@ class OMRDocker:
             return
         data = resp.json()
         for candidat in data['candidates']:
-            if candidat['cnibnumber'] == 'B'+cnib:
+            if candidat and candidat['cnibnumber'] == 'B'+cnib:
                 return candidat['id']
         print('Error could not find candidate that matches CNIB B%s for exam %s' % (cnib, exam_code))
 
@@ -137,6 +139,20 @@ class OMRDocker:
             'exam_id': exam_code,
             'candidat_id': candidat_id
         }
+        if self.use_local_template:
+            resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':exam_code})
+            q_data = resp.json()
+            questions = q_data['data']
+            question_ids = {}
+            for q in questions:
+                question_ids[q['order']] = str(q['question']['id'])
+            new_results = {}
+            print(question_ids)
+            for q_id, answer in results.items():
+                if q_id.startswith('Q'):
+                    new_results['Q'+question_ids[ int(q_id[1:]) ]] = answer
+            results = new_results
+        print(results)
         for q_id, answer in results.items():
             if q_id.startswith('Q'):
                 data['question_id'] = q_id[1:]
@@ -234,16 +250,26 @@ class OMRDocker:
             messages = self.azure_queue_client.receive_messages(visibility_timeout=120)
             results = []
             for msg in messages:
+                self.use_local_template = False
+
                 content = json.loads(msg.content)
                 data = content['data']
                 print('Received %s from azure' % data['url'])
                 self.basename = os.path.basename(data['url'])
-                blob_client = container_client.get_blob_client( self.basename )
+                
+                exam = 'default'
+                m = re.search("{container}/(.+)/{basename}".format(container= self.azure_input_container_name, basename=self.basename), os.path.normpath(data['url']))
+                if m:
+                    self.use_local_template = True
+                    exam = m.group(1)
+
+                print("Using: %s", exam)
+                blob_client = container_client.get_blob_client( self.basename if exam == 'default' else os.path.join(exam, self.basename) )
                 with NamedTemporaryFile(suffix=os.path.splitext(data['url'])[1]) as blob_file:
                     download_stream = blob_client.download_blob()
                     blob_file.write( download_stream.readall() )
                     self.original_file = blob_file.name
-                    results.append( self.process(blob_file.name, 'default') )
+                    results.append( self.process(blob_file.name, exam) )
                     self.azure_queue_client.delete_message(msg)
             return results
 
