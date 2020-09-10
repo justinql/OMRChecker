@@ -108,7 +108,7 @@ class OMRDocker:
             return
         return json.loads(resp.json()['data']['jsonconf'])[page-1]
 
-    def get_candidat_id( self, exam_code, cnib ):
+    def get_candidat_id( self, exam_code, roll ):
         url = self.server_url_prefix + '/admin/admit/acndidate/exam/getall?'
         data = {
             'exam_id': exam_code,
@@ -119,9 +119,9 @@ class OMRDocker:
             return
         data = resp.json()
         for candidat in data['candidates']:
-            if candidat and candidat['cnibnumber'] == 'B'+cnib:
+            if candidat and ''.join(re.findall(r'\d', candidat['candidatecode'])) == str(roll):
                 return candidat['id']
-        print('Error could not find candidate that matches CNIB B%s for exam %s' % (cnib, exam_code))
+        print('Error could not find candidate that matches CNIB B%s for exam %s' % (roll, exam_code))
 
     def send_results( self, exam_code, results, result_dir ):
         # This section of code is slow
@@ -147,12 +147,10 @@ class OMRDocker:
             for q in questions:
                 question_ids[q['order']] = str(q['question']['id'])
             new_results = {}
-            print(question_ids)
             for q_id, answer in results.items():
                 if q_id.startswith('Q'):
                     new_results['Q'+question_ids[ int(q_id[1:]) ]] = answer
             results = new_results
-        print(results)
         for q_id, answer in results.items():
             if q_id.startswith('Q'):
                 data['question_id'] = q_id[1:]
@@ -258,12 +256,15 @@ class OMRDocker:
                 self.basename = os.path.basename(data['url'])
                 
                 exam = 'default'
-                m = re.search("{container}/(.+)/{basename}".format(container= self.azure_input_container_name, basename=self.basename), os.path.normpath(data['url']))
+                m = re.search("{container}/(.+)/{basename}".format(
+                    container=re.escape( self.azure_input_container_name ),
+                    basename=re.escape(self.basename)
+                ), os.path.normpath(data['url']))
                 if m:
                     self.use_local_template = True
                     exam = m.group(1)
 
-                print("Using: %s", exam)
+                print( os.path.join(exam, self.basename) )
                 blob_client = container_client.get_blob_client( self.basename if exam == 'default' else os.path.join(exam, self.basename) )
                 with NamedTemporaryFile(suffix=os.path.splitext(data['url'])[1]) as blob_file:
                     download_stream = blob_client.download_blob()
