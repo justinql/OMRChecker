@@ -26,7 +26,7 @@ class OMRDocker:
 
     def __init__( self ):
         self.cycle_time = os.getenv('CYCLE_TIME', 15)
-        self.server_url_prefix = os.environ['SERVER_URL_PREFIX']
+        self.server_url_prefix = os.environ['SERVER_URL_PREFIX'].rstrip('/')
         self.omr_queue_service = os.environ['OMR_QUEUE_SERVICE'].lower()
         self.omr_queue_name = os.environ['OMR_QUEUE']
 
@@ -45,7 +45,6 @@ class OMRDocker:
             if not self.azure_output_container_name:
                 raise Exception( 'Error enviroment variable AZURE_OUTPUT_CONTAINER must be specified when using azure' )
                 
-
             self.azure_blob_service_client = BlobServiceClient.from_connection_string( self.azure_connection_string )
             self.azure_queue_client = QueueClient.from_connection_string(self.azure_connection_string, self.omr_queue_name, message_decode_policy=TextBase64DecodePolicy())
 
@@ -55,13 +54,13 @@ class OMRDocker:
         return paths
 
     def move_output_files( self, src_path, dest_path, prefix='', include_orginal=False ):
-        extensions = ('*.jpg', '*.jpeg', '*.JPG', '*.JPEG')
+        extensions = ('*.jpg', '*.jpeg', '*.JPG', '*.JPEG', '*.csv')
         for ext in extensions:
             for output_file in glob.glob(os.path.join(src_path, ext)):
                 print( 'Moving %s to %s' % (output_file, dest_path) )
                 with open( output_file, 'rb' ) as data:
                     if self.omr_queue_service == 'azure':
-                        blob_name = os.path.join( dest_path, prefix+self.basename)
+                        blob_name = os.path.join( dest_path, prefix+ext.replace('*', ".".join(self.basename.split('.'))))
                         blob_client = self.azure_blob_service_client.get_blob_client(container=self.azure_output_container_name, blob=blob_name)
                         blob_client.upload_blob( data, overwrite=True )
                         break
@@ -72,6 +71,16 @@ class OMRDocker:
                     blob_name = os.path.join( dest_path, 'original_'+self.basename)
                     blob_client = self.azure_blob_service_client.get_blob_client(container=self.azure_output_container_name, blob=blob_name)
                     blob_client.upload_blob( data, overwrite=True )
+        
+    #def log_error( self, error_type, error ):
+    #    if self.omr_queue_service == 'azure':
+    #        blob_name = os.path.join( error_type, error_type+'.csv')
+    #        error += ',' + self.basename
+    #        blob_client = self.azure_blob_service_client.get_blob_client(container=self.azure_output_container_name, blob=blob_name)
+    #        blob_client.append_block( error )
+    #        with NamedTemporaryFile(suffix=os.path.splitext(data['url'])[1]) as blob_file:
+    #            download_stream = blob_client.download_blob()
+    #            blob_file.write( download_stream.readall() )
 
     def get_template_codes( self, files, template ):
         if template == 'default':
@@ -88,7 +97,6 @@ class OMRDocker:
                         if code.isdigit() and page.isdigit():
                             codes.append( (int(code, 2), int(page, 2) ) )
                         else:
-                            pass # TODO send to azure error container here
                             self.move_output_files( os.path.join(tmp_dir,'CheckedOMRs'), 'scan-errors', prefix='corrected_', include_orginal=True)
                             break
             return codes
@@ -109,19 +117,34 @@ class OMRDocker:
         return json.loads(resp.json()['data']['jsonconf'])[page-1]
 
     def get_candidat_id( self, exam_code, roll ):
-        url = self.server_url_prefix + '/admin/admit/acndidate/exam/getall?'
+        url = self.server_url_prefix + '/candidat/findbycode'
+        roll = str(roll)
+        if len(roll) != 16:
+            print('Error candidates id %s is not formated correctly' % (roll))
+            return
+        roll = roll[:4] + '_' + roll[4:8] + "_" + roll[8:12] + "_" + roll[12:]
         data = {
-            'exam_id': exam_code,
+                'candidatecode': roll 
         }
         resp = requests.post( url, json=data )
         if resp.status_code != 201:
-            print('Error could not retrieve candidates for exam %s, error %s' % (exam_code, resp.status_code))
+            print('Error could not find candidates %s, error %s' % (roll, resp.status_code))
             return
         data = resp.json()
-        for candidat in data['candidates']:
-            if candidat and ''.join(re.findall(r'\d', candidat['candidatecode'])) == str(roll):
-                return candidat['id']
-        print('Error could not find candidate that matches CNIB B%s for exam %s' % (roll, exam_code))
+        return data['data']['id']
+        #url = self.server_url_prefix + '/admin/admit/acndidate/exam/getall?'
+        #data = {
+        #    'exam_id': exam_code,
+        #}
+        #resp = requests.post( url, json=data )
+        #if resp.status_code != 201:
+        #    print('Error could not retrieve candidates for exam %s, error %s' % (exam_code, resp.status_code))
+        #    return
+        #data = resp.json()
+        #for candidat in data['candidates']:
+        #    if candidat and ''.join(re.findall(r'\d', candidat['candidatecode'])) == str(roll):
+        #        return candidat['id']
+        #print('Error could not find candidate that matches CNIB %s for exam %s' % (roll, exam_code))
 
     def send_results( self, exam_code, results, result_dir ):
         # This section of code is slow
@@ -132,6 +155,7 @@ class OMRDocker:
         if not candidat_id:
             # TODO send to azure error container, no-user folder
             self.move_output_files( os.path.join(result_dir,'CheckedOMRs'), os.path.join('candidate-not-found', results['roll'], str(exam_code)), prefix='corrected_', include_orginal=True )
+            #self.log_error( 'candidate-not-found', ','.join([results['roll'], str(exam_code)]) )
             return
 
         url = self.server_url_prefix + '/composition/question/answered'
@@ -208,7 +232,7 @@ class OMRDocker:
 
                     self.send_results( exam_code[0], result[0], full_tmp_dir)
                     results.append( result )
-                    self.move_output_files( os.path.join(full_tmp_dir, 'CheckedOMRs'), os.path.join( 'results', 'B'+result[0]['roll'], str(exam_code[0]),str(exam_code[1]) ), prefix='corrected_', include_orginal=True )
+                    self.move_output_files( os.path.join(full_tmp_dir, 'CheckedOMRs'), os.path.join( 'results', result[0]['roll'], str(exam_code[0]),str(exam_code[1]) ), prefix='corrected_', include_orginal=True )
            # else:
            #     pass # TODO add to azure error folder
            #     self.move_output_files( os.path.join(tmp_dir,'CheckedOMRs'), 'scan-errors', prefix='corrected_', include_orginal=True)
@@ -245,7 +269,8 @@ class OMRDocker:
 
     def next_azure_data( self ):
             container_client = self.azure_blob_service_client.get_container_client(self.azure_input_container_name)
-            messages = self.azure_queue_client.receive_messages(visibility_timeout=120)
+            messages_per_cycle= int(float( os.getenv('MESSAGES_PER_CYCLE', 1) ))
+            messages = self.azure_queue_client.receive_messages(visibility_timeout=messages_per_cycle*30, messages_per_page=messages_per_cycle)
             results = []
             for msg in messages:
                 self.use_local_template = False

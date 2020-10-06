@@ -45,6 +45,7 @@ MIN_JUMP = 10
 # If only not confident, take help of globalTHR
 CONFIDENT_JUMP = MIN_JUMP + 15
 CONFIDENT_JUMP = MIN_JUMP + 8 # adjust this value to make scan more sensitive
+CONFIDENT_JUMP = MIN_JUMP + 12 # adjust this value to make scan more sensitive
 JUMP_DELTA = 30
 # MIN_GAP : worst case gap of black and gray
 
