@@ -113,6 +113,8 @@ class OMRDocker:
         resp = requests.post( url, json=data )
         if resp.status_code != 201:
             print('Error could not get template for exam %s, error %s' % (exam_code, resp.status_code))
+            if resp.status_code != 404:
+                raise Exception("Error communicating with API server at %s, %s" % self.server_url_prefix, resp.status_code)
             return
         return json.loads(resp.json()['data']['jsonconf'])[page-1]
 
@@ -129,6 +131,8 @@ class OMRDocker:
         resp = requests.post( url, json=data )
         if resp.status_code != 201:
             print('Error could not find candidates %s, error %s' % (roll, resp.status_code))
+            if resp.status_code != 404:
+                raise Exception("Error communicating with API server at %s, %s" % self.server_url_prefix, resp.status_code)
             return
         data = resp.json()
         return data['data']['id']
@@ -192,6 +196,8 @@ class OMRDocker:
                 resp = requests.post( url, json=data )
                 if resp.status_code != 201:
                     print('Error writting exam resault exam_id: %s candidat_id: %s question_id %s' % (data['exam_id'], data['candidat_id'], data['question_id']))
+                    if resp.status_code != 404:
+                        raise Exception("Error communicating with API server at %s, %s" % self.server_url_prefix, resp.status_code)
                     break
  
     def process_file_with_retries(self, files, template_json, paths, tmp_dir, unmarked_symbol='', retries=4):
@@ -270,7 +276,7 @@ class OMRDocker:
     def next_azure_data( self ):
             container_client = self.azure_blob_service_client.get_container_client(self.azure_input_container_name)
             messages_per_cycle= int(float( os.getenv('MESSAGES_PER_CYCLE', 1) ))
-            messages = self.azure_queue_client.receive_messages(visibility_timeout=messages_per_cycle*30, messages_per_page=messages_per_cycle)
+            messages = self.azure_queue_client.receive_messages(visibility_timeout=messages_per_cycle*130, messages_per_page=messages_per_cycle)
             results = []
             for msg in messages:
                 self.use_local_template = False
