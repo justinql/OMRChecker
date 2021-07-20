@@ -1,4 +1,4 @@
-import redis, json, requests, time, sys, glob, traceback, os.path, re
+import redis, json, requests, time, sys, glob, traceback, os.path, re, csv, mysql.connector
 from  main import process_files, setup_output
 from globals import Paths
 from utils import setup_dirs
@@ -24,11 +24,16 @@ class OMRDocker:
             'template': None
     }
 
+    csv_file = 'csv_file.csv'
+
+    send_to_api = True
+
     def __init__( self ):
         self.cycle_time = os.getenv('CYCLE_TIME', 15)
         self.server_url_prefix = os.environ['SERVER_URL_PREFIX'].rstrip('/')
         self.omr_queue_service = os.environ['OMR_QUEUE_SERVICE'].lower()
         self.omr_queue_name = os.environ['OMR_QUEUE']
+        self.send_to_api = os.getenv('SEND_TO_API', False)
 
         if self.omr_queue_service not in self.OMR_QUEUE_SERVICE_OPTIONS:
             raise Exception( 'Error OMR_QUEUE_SERVICE must be one of %s' % (self.OMR_QUEUE_SERVICE_OPTIONS,) )
@@ -118,13 +123,21 @@ class OMRDocker:
             return
         return json.loads(resp.json()['data']['jsonconf'])[page-1]
 
+    def format_roll(self, roll):
+        formated = ''
+        for i in range(0, len(roll), 4):
+            if i > 0:
+                formated += '_'
+            formated += roll[i:i+4]
+        return formated
+
     def get_candidat_id( self, exam_code, roll ):
         url = self.server_url_prefix + '/candidat/findbycode'
         roll = str(roll)
         if len(roll) != 16:
             print('Error candidates id %s is not formated correctly' % (roll))
             return
-        roll = roll[:4] + '_' + roll[4:8] + "_" + roll[8:12] + "_" + roll[12:]
+        roll = self.format_roll( roll ) 
         data = {
                 'candidatecode': roll 
         }
@@ -155,6 +168,8 @@ class OMRDocker:
         # Flushing output to make logs easier to follow
         sys.stdout.flush()
 
+        roll = results['roll']
+
         candidat_id = self.get_candidat_id( exam_code, results['roll'])
         if not candidat_id:
             # TODO send to azure error container, no-user folder
@@ -179,6 +194,7 @@ class OMRDocker:
                 if q_id.startswith('Q'):
                     new_results['Q'+question_ids[ int(q_id[1:]) ]] = answer
             results = new_results
+        db_values = []
         for q_id, answer in results.items():
             if q_id.startswith('Q'):
                 data['question_id'] = q_id[1:]
@@ -193,12 +209,43 @@ class OMRDocker:
                     data['answer4'] = 1
 
                 # print( data )
-                resp = requests.post( url, json=data )
-                if resp.status_code != 201:
-                    print('Error writting exam resault exam_id: %s candidat_id: %s question_id %s' % (data['exam_id'], data['candidat_id'], data['question_id']))
-                    if resp.status_code != 404:
-                        raise Exception("Error communicating with API server at %s, %s" % self.server_url_prefix, resp.status_code)
-                    break
+                if self.send_to_api:
+                    resp = requests.post( url, json=data )
+                    if resp.status_code != 201:
+                        print('Error writting exam resault exam_id: %s candidat_id: %s question_id %s' % (data['exam_id'], data['candidat_id'], data['question_id']))
+                        if resp.status_code != 404:
+                            raise Exception("Error communicating with API server at %s, %s" % self.server_url_prefix, resp.status_code)
+                        break
+
+                else:
+                    db_values.append((data['question_id'], data['answer1'], data['answer2'], data['answer3'], data['answer4']))
+
+        if not self.send_to_api:
+            blob_name = os.path.join( 'results', roll, data['exam_id'], '1', 'corrected_'+self.basename+'.jpg')
+            blob_client = self.azure_blob_service_client.get_blob_client(container=self.azure_output_container_name, blob=blob_name)
+            dest_url = blob_client.url
+            blob_name = os.path.join( data['exam_id'], self.basename)
+            blob_client = self.azure_blob_service_client.get_blob_client(container=self.azure_input_container_name, blob=blob_name)
+            org_url = blob_client.url
+
+            db = mysql.connector.connect(
+                host=os.environ['DB_HOST'],
+                user=os.environ['DB_USER'],
+                password=os.environ['DB_PASSWORD'],
+                database=os.environ['DB_NAME']
+            )
+
+            cursor = db.cursor()
+            query = 'insert into exam_attempts(exam_id,candidate_id,candidate_roll,org_url,dest_url) values(%s,%s,%s,%s,%s)'
+            values = ( data['exam_id'], data['candidat_id'], self.format_roll(roll), org_url, dest_url )
+            cursor.execute(query, values)
+            db.commit()
+            exam_attempt_id = cursor.lastrowid
+            query = 'insert into exam_answers(exam_attempt_id,question_id,answer1,answer2,answer3,answer4) values(%s,%s,%s,%s,%s,%s)'
+            values = [(exam_attempt_id,)+value for value in db_values]
+            cursor.executemany(query, values)
+            db.commit()
+
  
     def process_file_with_retries(self, files, template_json, paths, tmp_dir, unmarked_symbol='', retries=4):
         retries *= 2
