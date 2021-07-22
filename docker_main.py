@@ -8,6 +8,11 @@ from pdf2image import convert_from_path
 from io import StringIO
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 from azure.storage.queue import QueueServiceClient, QueueClient, QueueMessage, TextBase64DecodePolicy
+import azure.cosmos.documents as documents
+import azure.cosmos.cosmos_client as cosmos_client
+import azure.cosmos.exceptions as exceptions
+from azure.cosmos.partition_key import PartitionKey
+import datetime
 
 
 class OMRDocker:
@@ -34,6 +39,7 @@ class OMRDocker:
         self.omr_queue_service = os.environ['OMR_QUEUE_SERVICE'].lower()
         self.omr_queue_name = os.environ['OMR_QUEUE']
         self.send_to_api = os.getenv('SEND_TO_API', False)
+        self.db_type = os.getenv('DB_TYPE', 'cosmodb')
 
         if self.omr_queue_service not in self.OMR_QUEUE_SERVICE_OPTIONS:
             raise Exception( 'Error OMR_QUEUE_SERVICE must be one of %s' % (self.OMR_QUEUE_SERVICE_OPTIONS,) )
@@ -163,6 +169,55 @@ class OMRDocker:
         #        return candidat['id']
         #print('Error could not find candidate that matches CNIB %s for exam %s' % (roll, exam_code))
 
+    def calculate_percentage( self, results ):
+        total = len( results )
+        score = 0
+        for r in results.values():
+            score += r['points'] 
+        return score/total        
+            
+    def calculate_specialty_percentage( self, results ):
+        total = 0
+        score = 0
+        for r in results.values():
+            if r['specialty']:
+                score += r['points'] 
+                total+=1
+        if total >0:
+            return score/total
+        return 0
+    
+    def calculate_general_percentage( self, results ):
+        total = 0
+        score = 0
+        for r in results.values():
+            if not r['specialty']:
+                score += r['points'] 
+                total+=1
+        if total >0:
+            return score/total
+        return 0
+        
+    def correct_all( self, results, questions ):
+        total_question = len(questions)
+        for q in questions:
+            if q['order'] > 50 : continue
+            q_id = str(q['question']['id'])
+            #print(q_id)
+            result = results[ q_id ]
+            results[q_id]['points'] = self.correction_question(result,q['answer'])
+            results[q_id]['specialty'] = 0
+            if total_question == 50 and q['order'] <=30 or total_question == 60 and q['order'] <=40:
+                results[q_id]['specialty'] = 1
+                
+        return results
+    
+    def correction_question( self, result, answer,value=1 ):
+       #print(result['answer1'] , answer['isanser1correct'] , result['answer2'] , answer['isanser2correct'] , result['answer3'] , answer['isanser3correct'] , result['answer4'] , answer['isanser4correct'])
+        if result['answer1'] == answer['isanser1correct'] and result['answer2'] == answer['isanser2correct'] and result['answer3'] == answer['isanser3correct'] and result['answer4'] == answer['isanser4correct']:
+            return value
+        return 0
+        
     def send_results( self, exam_code, results, result_dir ):
         # This section of code is slow
         # Flushing output to make logs easier to follow
@@ -170,7 +225,8 @@ class OMRDocker:
 
         roll = results['roll']
 
-        candidat_id = self.get_candidat_id( exam_code, results['roll'])
+        #candidat_id = self.get_candidat_id( exam_code, results['roll'])
+        candidat_id = 1
         if not candidat_id:
             # TODO send to azure error container, no-user folder
             self.move_output_files( os.path.join(result_dir,'CheckedOMRs'), os.path.join('candidate-not-found', results['roll'], str(exam_code)), prefix='corrected_', include_orginal=True )
@@ -183,7 +239,8 @@ class OMRDocker:
             'candidat_id': candidat_id
         }
         if self.use_local_template:
-            resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':exam_code})
+            resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':'724'})
+            #resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':exam_code})
             q_data = resp.json()
             questions = q_data['data']
             question_ids = {}
@@ -195,58 +252,133 @@ class OMRDocker:
                     new_results['Q'+question_ids[ int(q_id[1:]) ]] = answer
             results = new_results
         db_values = []
+        
+        #creating table to save all the answers the candidate selected      
+        results_to_correct = {}
         for q_id, answer in results.items():
+            data = {
+              #  'exam_id': exam_code,
+              #  'candidat_id': candidat_id
+            }
             if q_id.startswith('Q'):
                 data['question_id'] = q_id[1:]
-                data.update( {'answer1':0, 'answer2':0, 'answer3':0, 'answer4':0} )
-                if 'A' in answer or '1' in answer:
-                    data['answer1'] = 1
-                if 'B' in answer or '2' in answer:
-                    data['answer2'] = 1
-                if 'C' in answer or '3' in answer:
-                    data['answer3'] = 1
-                if 'D' in answer or '4' in answer:
-                    data['answer4'] = 1
+            else: 
+                data['question_id'] = q_id
+            data.update( {'answer1':0, 'answer2':0, 'answer3':0, 'answer4':0} )
+            if 'A' in answer or '1' in answer:
+                data['answer1'] = 1
+            if 'B' in answer or '2' in answer:
+                data['answer2'] = 1
+            if 'C' in answer or '3' in answer:
+                data['answer3'] = 1
+            if 'D' in answer or '4' in answer:
+                data['answer4'] = 1
+                    
+            #sending all the answers the candidate selected        
+            results_to_correct[ str(data['question_id']) ] = data
+                   
+            print( data )
+           # if self.send_to_api:
+             #   resp = requests.post( url, json=data )
+            #    if resp.status_code != 201:
+            #        print('Error writting exam resault exam_id: %s candidat_id: %s question_id %s' % (data['exam_id'], data['candidat_id'], data['question_id']))
+            #        if resp.status_code != 404:
+            #            raise Exception("Error communicating with API server at %s, %s" % self.server_url_prefix, resp.status_code)
+             #       break
 
-                # print( data )
-                if self.send_to_api:
-                    resp = requests.post( url, json=data )
-                    if resp.status_code != 201:
-                        print('Error writting exam resault exam_id: %s candidat_id: %s question_id %s' % (data['exam_id'], data['candidat_id'], data['question_id']))
-                        if resp.status_code != 404:
-                            raise Exception("Error communicating with API server at %s, %s" % self.server_url_prefix, resp.status_code)
-                        break
-
-                else:
-                    db_values.append((data['question_id'], data['answer1'], data['answer2'], data['answer3'], data['answer4']))
-
-        if not self.send_to_api:
-            blob_name = os.path.join( 'results', roll, data['exam_id'], '1', 'corrected_'+self.basename+'.jpg')
+           # else:
+           #     db_values.append((data['question_id'], data['answer1'], data['answer2'], data['answer3'], data['answer4']))
+                    
+        #sending the questions and results from the candidate to correct 
+        candidate_result_to_save = self.correct_all(results_to_correct, questions )
+        percentage = self.calculate_percentage(candidate_result_to_save) 
+        specialty_percentage = self.calculate_specialty_percentage(candidate_result_to_save) 
+        general_percentage = self.calculate_general_percentage(candidate_result_to_save) 
+        
+        
+        
+        if True or not self.send_to_api:
+            blob_name = os.path.join( 'results', roll, exam_code, '1', 'corrected_'+self.basename+'.jpg')
             blob_client = self.azure_blob_service_client.get_blob_client(container=self.azure_output_container_name, blob=blob_name)
             dest_url = blob_client.url
-            blob_name = os.path.join( data['exam_id'], self.basename)
+            blob_name = os.path.join( exam_code, self.basename)
             blob_client = self.azure_blob_service_client.get_blob_client(container=self.azure_input_container_name, blob=blob_name)
             org_url = blob_client.url
 
-            db = mysql.connector.connect(
-                host=os.environ['DB_HOST'],
-                user=os.environ['DB_USER'],
-                password=os.environ['DB_PASSWORD'],
-                database=os.environ['DB_NAME']
-            )
+            if self.db_type == 'mysql':
+                db = mysql.connector.connect(
+                    host=os.environ['DB_HOST'],
+                    user=os.environ['DB_USER'],
+                    password=os.environ['DB_PASSWORD'],
+                    database=os.environ['DB_NAME']
+                )
 
-            cursor = db.cursor()
-            query = 'insert into exam_attempts(exam_id,candidate_id,candidate_roll,org_url,dest_url) values(%s,%s,%s,%s,%s)'
-            values = ( data['exam_id'], data['candidat_id'], self.format_roll(roll), org_url, dest_url )
-            cursor.execute(query, values)
-            db.commit()
-            exam_attempt_id = cursor.lastrowid
-            query = 'insert into exam_answers(exam_attempt_id,question_id,answer1,answer2,answer3,answer4) values(%s,%s,%s,%s,%s,%s)'
-            values = [(exam_attempt_id,)+value for value in db_values]
-            cursor.executemany(query, values)
-            db.commit()
+                cursor = db.cursor()
+                query = 'insert into exam_attempts(exam_id,candidate_id,candidate_roll,org_url,dest_url) values(%s,%s,%s,%s,%s)'
+                values = ( data['exam_id'], data['candidat_id'], self.format_roll(roll), org_url, dest_url )
+                cursor.execute(query, values)
+                db.commit()
+                exam_attempt_id = cursor.lastrowid
+                query = 'insert into exam_answers(exam_attempt_id,question_id,answer1,answer2,answer3,answer4) values(%s,%s,%s,%s,%s,%s)'
+                values = [(exam_attempt_id,)+value for value in db_values]
+                cursor.executemany(query, values)
+                db.commit()
+            if self.db_type == 'cosmodb':
+                self.connect_azure_cosmodb()
+                #Azure cosmosDB insert
+                candidate_results = self.format_candidate_results(exam_code,candidat_id,self.format_roll(roll),percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url)
+                try:
+                    self.container.create_item(body=candidate_results)
+                except: 
+                    print("Candidate ID %s already exist for exam %s" % (candidat_id, exam_code))
 
  
+ 
+ 
+    def format_candidate_results(self,exam_id,candidate_id,candidate_roll,percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url):
+        # notice new fields have been added to the sales order
+        return  {
+                'id' : str(candidate_id),
+                'exam_id' : exam_id,
+                'candidate_id' : candidate_id,
+                'candidate_roll' : candidate_roll,
+                'result_percentage' : percentage,
+                'specialty_percentage' : specialty_percentage,
+                'general_percentage' : general_percentage,
+                'result_to_save' : candidate_result_to_save,
+                'org_url' : org_url,
+                'dest_url' : dest_url
+                }
+
+    
+        
+    def connect_azure_cosmodb(self):
+        host = os.environ.get('ACCOUNT_HOST', 'https://autocorrect.documents.azure.com:443/')
+        master_key = os.environ.get('ACCOUNT_KEY', 'Q5dLvu05GXXjQrYbTYYwvwj76TPoxp4trbPD7TYKwGSkPHqQ2mkeECzQU5F4U8WPazYEdUdV979U7NFzmBlYJw==')
+        database_id = os.environ.get('COSMOS_DATABASE', 'Autocorrect_2021')
+        container_id = os.environ.get('COSMOS_CONTAINER', 'Items')
+
+        client = cosmos_client.CosmosClient(host, {'masterKey': master_key}, user_agent="CosmosDBPythonQuickstart", user_agent_overwrite=True)
+            # setup database for this sample
+        try:
+            db = client.create_database(id=database_id)
+            print('Database with id \'{0}\' created'.format(database_id))
+
+        except exceptions.CosmosResourceExistsError:
+            db = client.get_database_client(database_id)
+            print('Database with id \'{0}\' was found'.format(database_id))
+
+        # setup container for this sample
+        try:
+            self.container = db.create_container(id=container_id, partition_key=PartitionKey(path='/exam_id'))
+            print('Container with id \'{0}\' created'.format(container_id))
+
+        except exceptions.CosmosResourceExistsError:
+            self.container = db.get_container_client(container_id)
+            print('Container with id \'{0}\' was found'.format(container_id))
+
+ 
+
     def process_file_with_retries(self, files, template_json, paths, tmp_dir, unmarked_symbol='', retries=4):
         retries *= 2
         start_marker_width_ration= int(template_json['Options']['Marker']['SheetToMarkerWidthRatio'])
