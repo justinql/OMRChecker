@@ -113,10 +113,14 @@ class OMRDocker:
             return codes
         else: return [(template, 1)]
 
-    def get_template( self, exam_code, page ):
+    def get_template( self, exam_code, page,nb_questions=50 ):
         if self.use_local_template:
-            with open('./blank_template.json', 'r') as f: 
-                return json.load(f)[page-1]
+            if nb_questions == 50:
+                with open('./MFPTPS-Feuille-de-Reponses-CD.json', 'r') as f: 
+                    return json.load(f)[page-1]
+            else:
+                with open('./MFPTPS-Feuille-de-Reponses-CP.json', 'r') as f: 
+                    return json.load(f)[page-1]
         url = self.server_url_prefix + '/exams'
         data = {
             'exam_id': exam_code,
@@ -225,8 +229,8 @@ class OMRDocker:
 
         roll = results['roll']
 
-        #candidat_id = self.get_candidat_id( exam_code, results['roll'])
-        candidat_id = 1
+        candidat_id = self.get_candidat_id( exam_code, results['roll'])
+        #candidat_id = 1
         if not candidat_id:
             # TODO send to azure error container, no-user folder
             self.move_output_files( os.path.join(result_dir,'CheckedOMRs'), os.path.join('candidate-not-found', results['roll'], str(exam_code)), prefix='corrected_', include_orginal=True )
@@ -239,9 +243,7 @@ class OMRDocker:
             'candidat_id': candidat_id
         }
         if self.use_local_template:
-            resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':'724'})
-            #resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':exam_code})
-            q_data = resp.json()
+            q_data = self.q_data
             questions = q_data['data']
             question_ids = {}
             for q in questions:
@@ -354,7 +356,7 @@ class OMRDocker:
         
     def connect_azure_cosmodb(self):
         host = os.environ.get('ACCOUNT_HOST', 'https://autocorrect.documents.azure.com:443/')
-        master_key = os.environ.get('ACCOUNT_KEY', 'Q5dLvu05GXXjQrYbTYYwvwj76TPoxp4trbPD7TYKwGSkPHqQ2mkeECzQU5F4U8WPazYEdUdV979U7NFzmBlYJw==')
+        master_key = os.environ.get('ACCOUNT_KEY', '')
         database_id = os.environ.get('COSMOS_DATABASE', 'Autocorrect_2021')
         container_id = os.environ.get('COSMOS_CONTAINER', 'Items')
 
@@ -406,9 +408,13 @@ class OMRDocker:
     def process_images( self, files, template ):
         codes = self.get_template_codes( files, template)
         results = []
+        if self.use_local_template:
+            #resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':'724'})
+            resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':exam_code})
+            self.q_data = resp.json()
         for exam_code, img_file in  zip(codes, files):
             #print(exam_code, img_file)
-            template = self.get_template( exam_code[0], exam_code[1] )
+            template = self.get_template( exam_code[0], exam_code[1], nb_questions = len(q_data['data']) )
             if template:
                 with TemporaryDirectory() as tmp_dir:
                     full_tmp_dir = os.path.join( tmp_dir, str(exam_code[0]), str(exam_code[1]))
