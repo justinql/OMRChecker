@@ -41,6 +41,10 @@ class OMRDocker:
         self.send_to_api = os.getenv('SEND_TO_API', False)
         self.db_type = os.getenv('DB_TYPE', 'cosmodb')
 
+        
+        if isinstance( self.send_to_api, str):
+            self.send_to_api = self.send_to_api.lower() == "true"
+        
         if self.omr_queue_service not in self.OMR_QUEUE_SERVICE_OPTIONS:
             raise Exception( 'Error OMR_QUEUE_SERVICE must be one of %s' % (self.OMR_QUEUE_SERVICE_OPTIONS,) )
 
@@ -142,23 +146,46 @@ class OMRDocker:
         return formated
 
     def get_candidat_id( self, exam_code, roll ):
-        url = self.server_url_prefix + '/candidat/findbycode'
-        roll = str(roll)
-        if len(roll) != 16:
-            print('Error candidates id %s is not formated correctly' % (roll))
-            return
-        roll = self.format_roll( roll ) 
-        data = {
-                'candidatecode': roll 
-        }
-        resp = requests.post( url, json=data )
-        if resp.status_code != 201:
-            print('Error could not find candidates %s, error %s' % (roll, resp.status_code))
-            if resp.status_code != 404:
-                raise Exception("Error communicating with API server at %s, %s" % self.server_url_prefix, resp.status_code)
-            return
-        data = resp.json()
-        return data['data']['id']
+        
+        roll = self.format_roll( roll )
+        if self.send_to_api:
+            url = self.server_url_prefix + '/candidat/findbycode'
+            roll = str(roll)
+            if len(roll) != 16:
+                print('Error candidates id %s is not formated correctly' % (roll))
+                return 
+            data = {
+                    'candidatecode': roll 
+            }
+            resp = requests.post( url, json=data )
+            if resp.status_code != 201:
+                print('Error could not find candidates %s, error %s' % (roll, resp.status_code))
+                if resp.status_code != 404:
+                    raise Exception("Error communicating with API server at %s, %s" % (self.server_url_prefix, resp.status_code))
+                return
+            data = resp.json()
+            return data['data']['id']
+        else: 
+            if self.db_type == "cosmodb":
+                url = 'https://testcorrect.azurewebsites.net/api/HttpTrigger3?code='+os.getenv('AZURE_FUNKTION_KEY')
+            roll = str(roll)
+            if len(roll) != 19:
+                print('Error candidates id %s is not formated correctly' % (roll))
+                return 
+            data = {
+                    
+                    'examid': exam_code, 
+                    'candidatecode': roll 
+            }
+            resp = requests.post( url, json=data )
+            if resp.status_code < 200 or resp.status_code > 299:
+                print('Error could not find candidates %s, error %s' % (roll, resp.status_code))
+                if resp.status_code != 404:
+                    raise Exception("Error communicating with API server at %s, %s" %( self.server_url_prefix, resp.status_code))
+                return
+            data = resp.json()
+            return data[0]['CANDIDATECODE']
+                
         #url = self.server_url_prefix + '/admin/admit/acndidate/exam/getall?'
         #data = {
         #    'exam_id': exam_code,
@@ -205,7 +232,6 @@ class OMRDocker:
     def correct_all( self, results, questions ):
         total_question = len(questions)
         for q in questions:
-            if q['order'] > 50 : continue
             q_id = str(q['question']['id'])
             #print(q_id)
             result = results[ q_id ]
@@ -298,6 +324,7 @@ class OMRDocker:
         general_percentage = self.calculate_general_percentage(candidate_result_to_save) 
         
         
+        print(self.db_type)
         
         if True or not self.send_to_api:
             blob_name = os.path.join( 'results', roll, exam_code, '1', 'corrected_'+self.basename+'.jpg')
@@ -334,7 +361,18 @@ class OMRDocker:
                 except: 
                     print("Candidate ID %s already exist for exam %s" % (candidat_id, exam_code))
 
- 
+    def get_cosmosdb_candidate(self, examid,candidatecode):
+        print('\nQuerying for an  Item by Partition Key\n')
+        container_id = os.environ.get('COSMOS_CANDIDATE_CONTAINER', 'candidatlist')
+        candidat_container = self.db.get_container_client(container_id)
+
+        # Including the partition key value of account_number in the WHERE filter results in a more efficient query
+        items = list(self.container.query_items(
+            query="SELECT c.CANDIDATECODE FROM c WHERE c.EXAMID='724' AND c.CANDIDATECODE ='2610_4078_6843_3627'"
+          
+        ))
+        print(items)
+        return items[0].get("CANDIDATECODE")
  
  
     def format_candidate_results(self,exam_id,candidate_id,candidate_roll,percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url):
@@ -363,20 +401,20 @@ class OMRDocker:
         client = cosmos_client.CosmosClient(host, {'masterKey': master_key}, user_agent="CosmosDBPythonQuickstart", user_agent_overwrite=True)
             # setup database for this sample
         try:
-            db = client.create_database(id=database_id)
+            self.db = client.create_database(id=database_id)
             print('Database with id \'{0}\' created'.format(database_id))
 
         except exceptions.CosmosResourceExistsError:
-            db = client.get_database_client(database_id)
+            self.db = client.get_database_client(database_id)
             print('Database with id \'{0}\' was found'.format(database_id))
 
         # setup container for this sample
         try:
-            self.container = db.create_container(id=container_id, partition_key=PartitionKey(path='/exam_id'))
+            self.container = self.db.create_container(id=container_id, partition_key=PartitionKey(path='/exam_id'))
             print('Container with id \'{0}\' created'.format(container_id))
 
         except exceptions.CosmosResourceExistsError:
-            self.container = db.get_container_client(container_id)
+            self.container = self.db.get_container_client(container_id)
             print('Container with id \'{0}\' was found'.format(container_id))
 
  
@@ -408,13 +446,15 @@ class OMRDocker:
     def process_images( self, files, template ):
         codes = self.get_template_codes( files, template)
         results = []
-        if self.use_local_template:
-            #resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':'724'})
-            resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':exam_code})
-            self.q_data = resp.json()
+        
         for exam_code, img_file in  zip(codes, files):
+            
+            if self.use_local_template:
+                #resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':'724'})
+                resp = requests.post(self.server_url_prefix + '/examquestion/exam', json={'exam_id':exam_code})
+                self.q_data = resp.json()
             #print(exam_code, img_file)
-            template = self.get_template( exam_code[0], exam_code[1], nb_questions = len(q_data['data']) )
+            template = self.get_template( exam_code[0], exam_code[1], nb_questions = len(self.q_data['data']) )
             if template:
                 with TemporaryDirectory() as tmp_dir:
                     full_tmp_dir = os.path.join( tmp_dir, str(exam_code[0]), str(exam_code[1]))
