@@ -184,7 +184,7 @@ class OMRDocker:
                     raise Exception("Error communicating with API server at %s, %s" %( self.server_url_prefix, resp.status_code))
                 return
             data = resp.json()
-            return data[0]['CANDIDATECODE']
+            return data[0]['id']
                 
         #url = self.server_url_prefix + '/admin/admit/acndidate/exam/getall?'
         #data = {
@@ -354,10 +354,14 @@ class OMRDocker:
                 db.commit()
             if self.db_type == 'cosmodb':
                 self.connect_azure_cosmodb()
+                # We can do an efficient point read lookup on partition key and id
+                import_candiate_info = self.container.read_item(item=candidat_id, partition_key=exam_code)
+
                 #Azure cosmosDB insert
-                candidate_results = self.format_candidate_results(exam_code,candidat_id,self.format_roll(roll),percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url)
+                candidate_results = self.format_candidate_results(percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url)
+                import_candiate_info.update( candidate_results )
                 try:
-                    self.container.upsert_item(body=candidate_results)
+                    self.container.upsert_item(body=import_candiate_info)
                 except: 
                     print("Candidate ID %s already exist for exam %s" % (candidat_id, exam_code))
 
@@ -375,17 +379,13 @@ class OMRDocker:
         return items[0].get("CANDIDATECODE")
  
  
-    def format_candidate_results(self,exam_id,candidate_id,candidate_roll,percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url):
+    def format_candidate_results(self,percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url):
         # notice new fields have been added to the sales order
         return  {
-                'id' : str(candidate_id),
-                'exam_id' : exam_id,
-                'candidate_id' : candidate_id,
-                'test' : candidate_roll,
                 'result_percentage' : percentage,
                 'specialty_percentage' : specialty_percentage,
                 'general_percentage' : general_percentage,
-                'result_to_save' : candidate_result_to_save,
+                'results' : candidate_result_to_save,
                 'org_url' : org_url,
                 'dest_url' : dest_url
                 }
@@ -396,7 +396,7 @@ class OMRDocker:
         host = os.environ.get('ACCOUNT_HOST', 'https://autocorrect.documents.azure.com:443/')
         master_key = os.environ.get('ACCOUNT_KEY', '')
         database_id = os.environ.get('COSMOS_DATABASE', 'Autocorrect_2021')
-        container_id = os.environ.get('COSMOS_CONTAINER', 'Items')
+        container_id = os.environ.get('COSMOS_CONTAINER', 'candidatlist')
 
         client = cosmos_client.CosmosClient(host, {'masterKey': master_key}, user_agent="CosmosDBPythonQuickstart", user_agent_overwrite=True)
             # setup database for this sample
