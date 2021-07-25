@@ -357,7 +357,7 @@ class OMRDocker:
                 #Azure cosmosDB insert
                 candidate_results = self.format_candidate_results(exam_code,candidat_id,self.format_roll(roll),percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url)
                 try:
-                    self.container.create_item(body=candidate_results)
+                    self.container.upsert_item(body=candidate_results)
                 except: 
                     print("Candidate ID %s already exist for exam %s" % (candidat_id, exam_code))
 
@@ -381,7 +381,7 @@ class OMRDocker:
                 'id' : str(candidate_id),
                 'exam_id' : exam_id,
                 'candidate_id' : candidate_id,
-                'candidate_roll' : candidate_roll,
+                'test' : candidate_roll,
                 'result_percentage' : percentage,
                 'specialty_percentage' : specialty_percentage,
                 'general_percentage' : general_percentage,
