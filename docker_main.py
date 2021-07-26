@@ -179,7 +179,7 @@ class OMRDocker:
             }
             resp = requests.post( url, json=data )
             if resp.status_code < 200 or resp.status_code > 299:
-                print('Error could not find candidates %s, error %s' % (roll, resp.status_code))
+                print('Error could not find candidates in cosmoisdb %s, error %s' % (roll, resp.status_code))
                 if resp.status_code != 404:
                     raise Exception("Error communicating with API server at %s, %s" %( self.server_url_prefix, resp.status_code))
                 return
