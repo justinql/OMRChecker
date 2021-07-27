@@ -184,7 +184,10 @@ class OMRDocker:
                     raise Exception("Error communicating with API server at %s, %s" %( self.server_url_prefix, resp.status_code))
                 return
             data = resp.json()
-            return data[0]['id']
+            if data:
+              return data[0]['id']
+            print('Error could not find candidates %s in cosmosdb for exam %s, returned empty results' % (roll, exam_code ) )
+            return
                 
         #url = self.server_url_prefix + '/admin/admit/acndidate/exam/getall?'
         #data = {
@@ -305,7 +308,6 @@ class OMRDocker:
             #sending all the answers the candidate selected        
             results_to_correct[ str(data['question_id']) ] = data
                    
-            print( data )
            # if self.send_to_api:
              #   resp = requests.post( url, json=data )
             #    if resp.status_code != 201:
@@ -393,6 +395,8 @@ class OMRDocker:
     
         
     def connect_azure_cosmodb(self):
+        if self.container:
+            return self.container
         host = os.environ.get('ACCOUNT_HOST', 'https://autocorrect.documents.azure.com:443/')
         master_key = os.environ.get('ACCOUNT_KEY', '')
         database_id = os.environ.get('COSMOS_DATABASE', 'Autocorrect_2021')
@@ -416,7 +420,7 @@ class OMRDocker:
         except exceptions.CosmosResourceExistsError:
             self.container = self.db.get_container_client(container_id)
             print('Container with id \'{0}\' was found'.format(container_id))
-
+        return self.container
  
 
     def process_file_with_retries(self, files, template_json, paths, tmp_dir, unmarked_symbol='', retries=4):
