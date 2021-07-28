@@ -147,14 +147,13 @@ class OMRDocker:
         return formated
 
     def get_candidat_id( self, exam_code, roll ):
-        
+        if len(roll) != 16:
+            print('Error candidates id %s is not formated correctly' % (roll))
+            return 
         roll = self.format_roll( roll )
         if self.send_to_api:
             url = self.server_url_prefix + '/candidat/findbycode'
             roll = str(roll)
-            if len(roll) != 16:
-                print('Error candidates id %s is not formated correctly' % (roll))
-                return 
             data = {
                     'candidatecode': roll 
             }
@@ -261,9 +260,13 @@ class OMRDocker:
 
         candidat_id = self.get_candidat_id( exam_code, results['roll'])
         #candidat_id = 1
+        if len(roll)!=16:
+            # TODO send to azure error container, no-user folder
+            self.move_output_files( os.path.join(result_dir,'CheckedOMRs'), os.path.join('recepicer-mal-coder', str(exam_code), results['roll']), prefix='corrected_', include_orginal=True )
+            return
         if not candidat_id:
             # TODO send to azure error container, no-user folder
-            self.move_output_files( os.path.join(result_dir,'CheckedOMRs'), os.path.join('candidate-not-found', results['roll'], str(exam_code)), prefix='corrected_', include_orginal=True )
+            self.move_output_files( os.path.join(result_dir,'CheckedOMRs'), os.path.join('candidat-non-trouver-dans-la-liste-admisible', str(exam_code), results['roll']), prefix='corrected_', include_orginal=True )
             #self.log_error( 'candidate-not-found', ','.join([results['roll'], str(exam_code)]) )
             return
 
@@ -429,12 +432,20 @@ class OMRDocker:
         start_marker_width_ration= int(template_json['Options']['Marker']['SheetToMarkerWidthRatio'])
         marker_width_ration = start_marker_width_ration
         error = None
+        best_try = None
         for i in range(retries):
             try:
                 print('marker ration', marker_width_ration)
                 template_json['Options']['Marker']['SheetToMarkerWidthRatio'] = marker_width_ration
                 template = Template(json_obj=template_json)
-                return process_files(files, template, self.args, setup_output(paths, template), unmarked_symbol=unmarked_symbol) 
+                current_try = process_files(files, template, self.args, setup_output(paths, template), unmarked_symbol=unmarked_symbol) 
+                if len(current_try[0]['roll']) == 16:
+                    return current_try
+                if not best_try or len(best_try[0]['roll']) > len(current_try[0]['roll']):
+                    best_try = current_try
+                if len(current_try[0]['roll']) > 32:
+                    raise Exception('Roll too long, try to scan again')
+                return current_try
             except Exception as error:
                 scale = int( (i+2)/2 )
                 if i%2 == 0:
@@ -442,6 +453,8 @@ class OMRDocker:
                 else:
                     marker_width_ration = start_marker_width_ration - scale
                 pass
+        if best_try:
+            return best_try
         if error:
             self.move_output_files( os.path.join(tmp_dir,'CheckedOMRs'), 'scan-errors', prefix='corrected_', include_orginal=True)
             raise error
