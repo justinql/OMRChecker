@@ -32,6 +32,7 @@ class OMRDocker:
     csv_file = 'csv_file.csv'
 
     send_to_api = True
+    container = None
 
     def __init__( self ):
         self.cycle_time = os.getenv('CYCLE_TIME', 15)
