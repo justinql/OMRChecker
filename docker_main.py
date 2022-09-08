@@ -167,7 +167,7 @@ class OMRDocker:
             return data['data']['id']
         else: 
             if self.db_type == "cosmodb":
-                url = 'https://testcorrect.azurewebsites.net/api/HttpTrigger3?code='+os.getenv('AZURE_FUNKTION_KEY')
+                url = os.getenv('AZURE_FUNCTION_URL')+'?code='+os.getenv('AZURE_FUNKTION_KEY')
             roll = str(roll)
             if len(roll) != 19:
                 print('Error candidates id %s is not formated correctly' % (roll))
