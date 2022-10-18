@@ -17,6 +17,9 @@ import datetime
 
 class OMRDocker:
     OMR_QUEUE_SERVICE_OPTIONS = ('redis', 'azure')
+    CORRECT = 0
+    TOTAL = 1
+    PERCENTAGE = 2
 
     dpi = 72
 
@@ -209,6 +212,13 @@ class OMRDocker:
         for r in results.values():
             score += r['points'] 
         return score/total        
+
+    def calculate_score( self, results ):
+        total = len( results )
+        score = 0
+        for r in results.values():
+            score += r['points'] 
+        return score, total, score/total        
             
     def calculate_specialty_percentage( self, results ):
         total = 0
@@ -220,6 +230,17 @@ class OMRDocker:
         if total >0:
             return score/total
         return 0
+
+    def calculate_specialty_score( self, results ):
+        total = 0
+        score = 0
+        for r in results.values():
+            if r['specialty']:
+                score += r['points'] 
+                total+=1
+        if total >0:
+            return score, total, score/total        
+        return 0,0,0
     
     def calculate_general_percentage( self, results ):
         total = 0
@@ -231,6 +252,17 @@ class OMRDocker:
         if total >0:
             return score/total
         return 0
+
+    def calculate_general_score( self, results ):
+        total = 0
+        score = 0
+        for r in results.values():
+            if not r['specialty']:
+                score += r['points'] 
+                total+=1
+        if total >0:
+            return score, total, score/total        
+        return 0,0,0
         
     def correct_all( self, results, questions ):
         total_question = len(questions)
@@ -326,8 +358,11 @@ class OMRDocker:
         #sending the questions and results from the candidate to correct 
         candidate_result_to_save = self.correct_all(results_to_correct, questions )
         percentage = self.calculate_percentage(candidate_result_to_save) 
+        score = self.calculate_score(candidate_result_to_save) 
         specialty_percentage = self.calculate_specialty_percentage(candidate_result_to_save) 
+        specialty_score = self.calculate_specialty_score(candidate_result_to_save) 
         general_percentage = self.calculate_general_percentage(candidate_result_to_save) 
+        general_score = self.calculate_general_score(candidate_result_to_save) 
         
         
         print(self.db_type)
@@ -364,7 +399,7 @@ class OMRDocker:
                 import_candiate_info = self.container.read_item(item=candidat_id, partition_key=exam_code)
 
                 #Azure cosmosDB insert
-                candidate_results = self.format_candidate_results(percentage,specialty_percentage,general_percentage,candidate_result_to_save,org_url,dest_url)
+                candidate_results = self.format_candidate_results_with_score(score,specialty_score,general_score,candidate_result_to_save,org_url,dest_url)
                 import_candiate_info.update( candidate_results )
                 try:
                     self.container.upsert_item(body=import_candiate_info)
@@ -396,6 +431,22 @@ class OMRDocker:
                 'dest_url' : dest_url
                 }
 
+    def format_candidate_results_with_score(self,score,specialty_score,general_score,candidate_result_to_save,org_url,dest_url):
+        # notice new fields have been added to the sales order
+        return  {
+                'result_correct_count' : score[self.CORRECT],
+                'result_total_count' : score[self.TOTAL],
+                'result_percentage' : score[self.PERCENTAGE],
+                'specialty_correct_count' : specialty_score[self.CORRECT],
+                'specialty_total_count' : specialty_score[self.TOTAL],
+                'specialty_percentage' : specialty_score[self.PERCENTAGE],
+                'general_correct_count' : general_score[self.CORRECT],
+                'general_total_count' : general_score[self.TOTAL],
+                'general_percentage' : general_score[self.PERCENTAGE],
+                'results' : candidate_result_to_save,
+                'org_url' : org_url,
+                'dest_url' : dest_url
+                }
     
         
     def connect_azure_cosmodb(self):
@@ -431,7 +482,7 @@ class OMRDocker:
         retries *= 2
         start_marker_width_ration= int(template_json['Options']['Marker']['SheetToMarkerWidthRatio'])
         marker_width_ration = start_marker_width_ration
-        error = None
+        exception_error = None
         best_try = None
         for i in range(retries):
             try:
@@ -447,6 +498,7 @@ class OMRDocker:
                     raise Exception('Roll too long, try to scan again')
                 return current_try
             except Exception as error:
+                exception_error = error
                 scale = int( (i+2)/2 )
                 if i%2 == 0:
                     marker_width_ration = start_marker_width_ration + scale
@@ -455,9 +507,9 @@ class OMRDocker:
                 pass
         if best_try:
             return best_try
-        if error:
+        if exception_error:
             self.move_output_files( os.path.join(tmp_dir,'CheckedOMRs'), 'scan-errors', prefix='corrected_', include_orginal=True)
-            raise error
+            raise exception_error
 
 
 
