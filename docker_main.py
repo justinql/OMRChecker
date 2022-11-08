@@ -281,7 +281,8 @@ class OMRDocker:
        #print(result['answer1'] , answer['isanser1correct'] , result['answer2'] , answer['isanser2correct'] , result['answer3'] , answer['isanser3correct'] , result['answer4'] , answer['isanser4correct'])
         if result['answer1'] == answer['isanser1correct'] and result['answer2'] == answer['isanser2correct'] and result['answer3'] == answer['isanser3correct'] and result['answer4'] == answer['isanser4correct']:
             return value
-        if not (answer['isanser1correct'] && answer['isanser2correct'] && answer['isanser3correct'] && answer['isanser4correct']):
+        if 1 not in [answer['isanser1correct'], answer['isanser2correct'], answer['isanser3correct'], answer['isanser4correct']]:
+            print(answer);
             return value
         return 0
         
